@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Evaluador de Huellas Ambientales — App</title>
+<style>
+:root{
+  --bg:#f6fbf7;
+  --card:#ffffff;
+  --accent:#1f7a4a;
+  --accent2:#49c07a;
+  --accent-hid:#1f7a4a;
+  --accent-car:#d65b1f;
+  --accent-plas:#e0a800;
+  --accent-eco:#2bb673;
+  --mut:#546b5f;
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:var(--accent);-webkit-font-smoothing:antialiased}
+.app-shell{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:980px}
+.card{background:var(--card);border-radius:18px;padding:22px;box-shadow:0 20px 50px rgba(15,80,44,0.06);margin-bottom:18px}
+.header{display:flex;align-items:center;gap:12px}
+.logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:28px;color:white;font-weight:800}
+.title{font-size:20px;margin:0;font-weight:800;color:#0b6b3a}
+.subtitle{color:var(--mut);margin-top:6px}
+
+/* Landing (app style centered) */
+.landing{display:flex;gap:18px;align-items:center;justify-content:space-between}
+.landing-left{flex:1}
+.landing-hero{width:160px;height:160px;border-radius:18px;background:linear-gradient(135deg,#e9ffee,#e6fff0);display:flex;align-items:center;justify-content:center;font-size:56px;box-shadow:0 26px 60px rgba(11,107,58,0.06);animation:float 3s ease-in-out infinite}
+@keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+
+/* Sections hidden by default */
+.hidden{display:none !important;}
+
+/* Inputs */
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+input[type="text"]{padding:10px;border-radius:10px;border:1px solid #e6f7ef}
+
+/* Tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.tile{display:flex;gap:12px;align-items:center;padding:14px;border-radius:12px;background:linear-gradient(180deg,#fff,#f7fff6);cursor:pointer;border-left:8px solid var(--accent);transition:transform .16s}
+.tile:hover{transform:translateY(-6px)}
+.emoji{font-size:36px}
+
+/* Questions */
+.question{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:12px;background:linear-gradient(180deg,#fbfff8,#ffffff);margin-bottom:12px}
+.options{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.opt{padding:10px 12px;border-radius:10px;border:1px solid #e6f7ef;background:#fff;font-weight:700;cursor:pointer;transition:transform .12s}
+.opt.selected{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border-color:transparent;transform:translateY(-6px)}
+
+/* Radial and bars */
+.radial{width:320px;height:320px;display:flex;align-items:center;justify-content:center;position:relative;margin:0 auto}
+.radial svg{transform:rotate(-90deg)}
+.radial .label{position:absolute;text-align:center}
+.radial .percent{font-size:48px;font-weight:900;color:#0b6b3a}
+.radial .text{font-size:14px;color:var(--mut);margin-top:6px}
+.bars{margin-top:12px}
+.bar{height:14px;background:#eee;border-radius:8px;overflow:hidden;margin-bottom:8px}
+.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));width:0%}
+
+/* Buttons */
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.btn{padding:10px 14px;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:white;border-radius:12px;font-weight:800;cursor:pointer}
+.btn-ghost{padding:10px 12px;border:1px solid #e6f7ef;background:transparent;border-radius:10px;cursor:pointer;color:#333}
+
+/* confetti canvas overlay */
+#confetti{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;display:none;z-index:9999}
+
+/* responsive */
+@media(max-width:900px){
+  .tiles{grid-template-columns:1fr}
+  .radial{width:260px;height:260px}
+  .landing{flex-direction:column;align-items:center;text-align:center}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div class="app-shell">
+  <div class="container">
+    <!-- Landing -->
+    <section id="landing" class="card landing" aria-label="Pantalla inicial">
+      <div class="landing-left">
+        <div class="header"><div class="logo">🌱</div><div><h1 class="title">Evaluador de Huellas Ambientales</h1><div class="subtitle">Realiza la encuesta y obtén recomendaciones para reducir tu impacto.</div></div></div>
+        <div style="margin-top:18px">
+          <button id="btnStart" class="btn" aria-label="Comenzar encuesta">Comenzar encuesta</button>
+        </div>
+      </div>
+      <div class="landing-hero" aria-hidden="true">🌿</div>
+    </section>
+
+    <!-- App content -->
+    <section id="app" class="hidden">
+      <!-- Datos -->
+      <div id="datos" class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Introduce tus datos</strong><div class="small">Nombre, Universidad, Carrera, Ciclo</div></div>
+          <div class="small" id="session-count">0 completadas</div>
+        </div>
+        <div class="inputs">
+          <input id="nombre" type="text" placeholder="Nombre completo">
+          <input id="universidad" type="text" placeholder="Universidad">
+          <input id="carrera" type="text" placeholder="Carrera">
+          <input id="ciclo" type="text" placeholder="Ciclo">
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+          <button id="btnSave" class="btn">Guardar y continuar</button>
+        </div>
+      </div>
+
+      <!-- Categorías -->
+      <div id="categorias" class="card hidden">
+        <div style="font-weight:800">Selecciona una categoría</div>
+        <div class="small">Cada categoría tiene 10 preguntas con emoji específico.</div>
+        <div class="tiles">
+          <div class="tile" data-cat="hidrica" role="button" tabindex="0"><div class="emoji">💧</div><div><strong>Huella Hídrica</strong><div class="small">Agua y consumo</div></div></div>
+          <div class="tile" data-cat="carbono" role="button" tabindex="0"><div class="emoji">🌍</div><div><strong>Huella de Carbono</strong><div class="small">Transporte y energía</div></div></div>
+          <div class="tile" data-cat="plastico" role="button" tabindex="0"><div class="emoji">♻️</div><div><strong>Huella de Plástico</strong><div class="small">Envases y residuos</div></div></div>
+          <div class="tile" data-cat="ecologica" role="button" tabindex="0"><div class="emoji">🌱</div><div><strong>Huella Ecológica</strong><div class="small">Hábitos y consumo</div></div></div>
+        </div>
+      </div>
+
+      <!-- Preguntas -->
+      <div id="preguntas" class="card hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div id="q-title" style="font-weight:800"></div><div class="small">Responde las 10 preguntas</div></div>
+          <div style="text-align:right"><div class="small">Progreso</div><div class="progress" style="width:220px"><div id="prog" style="width:0%"></div></div></div>
+        </div>
+        <div id="q-list" style="margin-top:12px"></div>
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between">
+          <div>
+            <button id="btnBackCats" class="btn-ghost">⬅ Categorías</button>
+          </div>
+          <div class="controls">
+            <button id="btnGenerate" class="btn">Generar resultados</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultados -->
+      <div id="resultados" class="card hidden">
+        <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+          <div style="flex:1;min-width:360px">
+            <div style="font-weight:900">Informe</div>
+            <div id="summary" class="small" style="margin-top:6px"></div>
+            <pre id="result-body" style="background:#f7fff6;padding:12px;border-radius:8px;margin-top:10px"></pre>
+          </div>
+          <div style="flex:1;min-width:320px">
+            <div id="radial" class="radial" aria-hidden="true"></div>
+            <div class="bars" id="bars"></div>
+          </div>
+        </div>
+
+        <div id="result-reco" style="margin-top:16px"></div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+          <button id="btnDownload" class="btn">Descargar informe (TXT)</button>
+          <button id="btnNew" class="btn-ghost">Nueva evaluación</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* --- Data and question direction config (MODELO A) --- */
+const EMOJIS = {
+  hidrica: ['🚿','💧','🚰','🧼','🪣','🔧','🥤','🫧','🧺','🚿'],
+  carbono: ['🚶','🚲','🚌','🚗','💡','🔌','🏠','🌳','✈️','⚡'],
+  plastico: ['🥤','🛍️','🍱','📦','🔄','🧴','♻️','📦','🥤','🍴'],
+  ecologica: ['🌱','🥗','🚯','🪴','🌿','🤝','📉','👕','🗑️','♻️']
+};
+
+/* For each question whether higher value means GOOD (true) or BAD (false) */
+const Q_GOOD = {
+  hidrica: [false,true,true,false,true,true,false,false,false,false],
+  carbono: [true,true,true,false,true,false,false,true,false,true],
+  plastico: [false,true,false,true,true,true,true,true,false,false],
+  ecologica: [true,true,true,true,true,true,true,true,false,true]
+};
+
+const QUESTIONS = {
+  hidrica:[
+    "¿Dejas el grifo abierto al cepillar?",
+    "¿Cuánto tiempo dura tu ducha diaria?",
+    "¿Usas lavadora con carga completa?",
+    "¿Riegas plantas con agua no potable?",
+    "¿Cierras el caño al lavar platos?",
+    "¿Reparas fugas rápidamente?",
+    "¿Cuántas botellas embotelladas consumes?",
+    "¿Dejas correr agua innecesariamente?",
+    "¿Lavas ropa con frecuencia innecesaria?",
+    "¿Tomas duchas largas constantemente?"
+  ],
+  carbono:[
+    "¿Con qué frecuencia caminas o usas bicicleta en trayectos cortos?",
+    "¿Con qué frecuencia usas transporte público?",
+    "¿Utilizas bicicleta o caminas regularmente?",
+    "¿Con qué frecuencia usas auto particular?",
+    "¿Apagas luces cuando no las usas?",
+    "¿Consumes carne roja con frecuencia?",
+    "¿Usas aire acondicionado a menudo?",
+    "¿Utilizas bombillas LED en casa?",
+    "¿Realizas viajes largos en avión con frecuencia?",
+    "¿Controlas tu consumo eléctrico?"
+  ],
+  plastico:[
+    "¿Cuántas botellas de plástico consumes?",
+    "¿Usas bolsas reutilizables al hacer mercado?",
+    "¿Compras comida en envases descartables?",
+    "¿Evitas productos con sobre-empaque?",
+    "¿Reutilizas envases para almacenar alimentos?",
+    "¿Separas tus tazas o botellas para reciclar?",
+    "¿Participas en reciclaje de plástico?",
+    "¿Compras productos con menos embalaje?",
+    "¿Usas sorbetes descartables?",
+    "¿Usas cubiertos descartables?"
+  ],
+  ecologica:[
+    "¿Compras productos locales?",
+    "¿Consumes alimentos orgánicos?",
+    "¿Evitas comida ultraprocesada?",
+    "¿Usas productos biodegradables?",
+    "¿Tienes plantas en casa?",
+    "¿Participas en actividades verdes?",
+    "¿Reduces consumo de papel?",
+    "¿Compras ropa más sostenible?",
+    "¿Generas mucha basura semanalmente?",
+    "¿Clasificas tus residuos?"
+  ]
+};
+
+/* state */
+let state = { user:{}, cat:'', answers:[], history: JSON.parse(localStorage.getItem('enc_history')||'[]') };
+
+/* UI nodes */
+const landing = document.getElementById('landing');
+const app = document.getElementById('app');
+const datos = document.getElementById('datos');
+const categorias = document.getElementById('categorias');
+const preguntas = document.getElementById('preguntas');
+const resultados = document.getElementById('resultados');
+const qList = document.getElementById('q-list');
+const progBar = document.getElementById('prog');
+const confCanvas = document.getElementById('confetti');
+
+/* Audio via WebAudio for small UI sounds */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playClick(){
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine';
+  o.frequency.value = 880;
+  g.gain.value = 0.0025;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  setTimeout(()=>{ o.frequency.value = 600; g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12); },50);
+  setTimeout(()=>o.stop(),180);
+}
+function playSwitch(){
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'triangle';
+  o.frequency.value = 520;
+  g.gain.value = 0.003;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.18);
+  setTimeout(()=>o.stop(),220);
+}
+function playSuccess(){
+  const o1 = audioCtx.createOscillator(); const o2 = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o1.frequency.value = 660; o2.frequency.value = 990;
+  o1.type='sine'; o2.type='sine';
+  o1.connect(g); o2.connect(g); g.connect(audioCtx.destination);
+  g.gain.value=0.002;
+  o1.start(); o2.start();
+  setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5); },120);
+  setTimeout(()=>{ o1.stop(); o2.stop(); },650);
+}
+
+/* confetti simple */
+function launchConfetti(){
+  const c = confCanvas;
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  const ctx = c.getContext('2d');
+  c.style.display='block';
+  const pieces = [];
+  for(let i=0;i<120;i++){
+    pieces.push({x:Math.random()*c.width,y:-Math.random()*c.height*0.5,vy:2+Math.random()*6,rx:Math.random()*20,ry:Math.random()*10,deg:Math.random()*360,color:`hsl(${Math.random()*360},70%,50%)`});
+  }
+  let t=0;
+  function frame(){
+    ctx.clearRect(0,0,c.width,c.height);
+    for(const p of pieces){
+      p.y += p.vy;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 8, 14);
+    }
+    t++;
+    if(t<200) requestAnimationFrame(frame);
+    else { ctx.clearRect(0,0,c.width,c.height); c.style.display='none'; }
+  }
+  frame();
+}
+
+/* Navigation and flow */
+document.getElementById('btnStart').addEventListener('click', ()=>{
+  landing.classList.add('hidden');
+  app.classList.remove('hidden');
+  datos.classList.remove('hidden');
+  categorias.classList.add('hidden');
+  preguntas.classList.add('hidden');
+  resultados.classList.add('hidden');
+  playSwitch();
+  document.getElementById('nombre').focus();
+});
+
+document.getElementById('btnSave').addEventListener('click', ()=>{
+  const nombre = document.getElementById('nombre').value.trim();
+  if(!nombre){ alert('Ingresa tu nombre'); return; }
+  state.user = {
+    nombre,
+    universidad: document.getElementById('universidad').value.trim(),
+    carrera: document.getElementById('carrera').value.trim(),
+    ciclo: document.getElementById('ciclo').value.trim(),
+    date: new Date().toISOString()
+  };
+  localStorage.setItem('enc_user', JSON.stringify(state.user));
+  datos.classList.add('hidden');
+  categorias.classList.remove('hidden');
+  playSwitch();
+});
+
+/* category click */
+document.querySelectorAll('.tile').forEach(tile=>{
+  tile.addEventListener('click', ()=>{
+    playClick();
+    const cat = tile.dataset.cat;
+    state.cat = cat;
+    buildQuestions(cat);
+    categorias.classList.add('hidden');
+    preguntas.classList.remove('hidden');
+    resultados.classList.add('hidden');
+  });
+});
+
+/* build questions */
+function buildQuestions(cat){
+  state.answers = [];
+  qList.innerHTML = '';
+  document.getElementById('q-title').innerText = 'Preguntas — ' + cat.toUpperCase();
+  const items = QUESTIONS[cat];
+  items.forEach((q,i)=>{
+    const emo = EMOJIS[cat][i] || '❓';
+    const div = document.createElement('div');
+    div.className = 'question';
+    div.innerHTML = `<div style="width:90px;display:flex;align-items:center;justify-content:center"><div class="emoji">${emo}</div></div>
+      <div style="flex:1"><div style="font-weight:800">${i+1}. ${q}</div><div class="options" id="opts-${i}" style="margin-top:8px"></div></div>`;
+    qList.appendChild(div);
+    const opts = document.getElementById('opts-'+i);
+    const labels = ['Muy bajo','Bajo','Moderado','Alto','Muy alto'];
+    labels.forEach((lab,s)=>{
+      const b = document.createElement('button');
+      b.className = 'opt';
+      b.innerText = lab;
+      b.addEventListener('click', ()=>{
+        opts.querySelectorAll('.opt').forEach(x=>x.classList.remove('selected'));
+        b.classList.add('selected');
+        state.answers[i] = s; // 0..4
+        updateProgress();
+        playClick();
+      });
+      opts.appendChild(b);
+    });
+  });
+  updateProgress();
+}
+
+/* progress */
+function updateProgress(){
+  const total = QUESTIONS[state.cat].length;
+  const answered = state.answers.filter(v=>typeof v==='number').length;
+  const pct = Math.round((answered/total)*100);
+  progBar.style.width = pct + '%';
+}
+
+/* back to categories */
+document.getElementById('btnBackCats').addEventListener('click', ()=>{
+  preguntas.classList.add('hidden');
+  categorias.classList.remove('hidden');
+  playSwitch();
+});
+
+/* generate results with MODELO A scoring */
+document.getElementById('btnGenerate').addEventListener('click', ()=>{
+  const total = QUESTIONS[state.cat].length;
+  const answered = state.answers.filter(v=>typeof v==='number').length;
+  if(answered < total){
+    if(!confirm('No respondiste todas las preguntas. Calcular igual?')) return;
+  }
+  // compute quality score: higher = better
+  const goodMap = Q_GOOD[state.cat];
+  let sum = 0;
+  for(let i=0;i<total;i++){
+    const val = Number(state.answers[i]||0); // 0..4
+    const higherIsGood = !!goodMap[i];
+    const qscore = higherIsGood ? val : (4 - val); // 0..4 quality
+    sum += qscore;
+  }
+  const max = total * 4;
+  const pct = Math.round((sum / max) * 100);
+  // compute each category scores for bars (if history present, we'll compute zeros)
+  const allCats = ['hidrica','carbono','plastico','ecologica'];
+  const catScores = {};
+  allCats.forEach(c=>{
+    // attempt to compute from history average or 0 if not current
+    if(c === state.cat){
+      catScores[c] = pct;
+    } else {
+      // try to find recent in history
+      const last = state.history.slice().reverse().find(h=>h.category===c);
+      catScores[c] = last ? last.pct : 50;
+    }
+  });
+  showResults(pct,sum,catScores);
+});
+
+/* show results function */
+function showResults(pct,sum,catScores){
+  const cat = state.cat;
+  const avgMap = { hidrica:50, carbono:65, plastico:55, ecologica:60 };
+  const avg = avgMap[cat] || 60;
+  const diff = pct - avg;
+  const status = pct >= avg+15 ? 'Excelente' : (pct >= avg ? 'Buen desempeño' : (pct >= avg-10 ? 'Aceptable' : 'Necesita mejorar'));
+  document.getElementById('summary').innerText = `Resultado: ${pct}% • Promedio universitario: ${avg}% • Diferencia: ${diff}% • ${status}`;
+  document.getElementById('result-body').innerText = `Informe — ${cat.toUpperCase()}
+Usuario: ${state.user.nombre || 'Anónimo'}
+Fecha: ${new Date().toLocaleString()}
+Puntaje bruto (calidad): ${sum} / ${QUESTIONS[cat].length*4}
+Porcentaje de buen desempeño: ${pct}%`;
+
+  // draw big radial for current category
+  buildRadial(cat,pct);
+
+  // draw bars for all categories
+  const bars = document.getElementById('bars');
+  bars.innerHTML = '';
+  const colors = {'hidrica':'var(--accent-hid)','carbono':'#d65b1f','plastico':'#e0a800','ecologica':'#2bb673'};
+  Object.keys(catScores).forEach(k=>{
+    const val = catScores[k];
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `<div style="font-weight:800;margin-top:8px">${k.toUpperCase()} — ${val}%</div><div class="bar"><i style="width:0%;background:${colors[k]}"></i></div>`;
+    bars.appendChild(wrapper);
+    setTimeout(()=>{ wrapper.querySelector('i').style.width = val + '%'; },60);
+  });
+
+  // recommendations
+  const recos = getRecommendations(cat);
+  let html = '<div style="display:flex;gap:18px;flex-wrap:wrap">';
+  html += '<div style="flex:1;min-width:260px">';
+  recos.forEach(r=>{ html += `<div style="font-weight:800;margin-top:12px">${r.title}</div><div class="small" style="margin-bottom:6px">${r.text}</div>`;});
+  html += '</div></div>';
+  document.getElementById('result-reco').innerHTML = html;
+
+  // push history
+  state.history.push({ user: state.user, category: cat, pct, date: new Date().toISOString() });
+  localStorage.setItem('enc_history', JSON.stringify(state.history));
+  document.getElementById('session-count').innerText = state.history.length + ' completadas';
+
+  // show results screen
+  preguntas.classList.add('hidden');
+  resultados.classList.remove('hidden');
+  playSuccess();
+  launchConfetti();
+}
+
+/* buildRadial */
+function buildRadial(cat,pct){
+  const size = 320;
+  const stroke = 20;
+  const radius = (size - stroke) / 2;
+  const circ = 2 * Math.PI * radius;
+  const container = document.getElementById('radial');
+  container.innerHTML = '';
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns,'svg');
+  svg.setAttribute('width',size);
+  svg.setAttribute('height',size);
+  const bg = document.createElementNS(ns,'circle');
+  bg.setAttribute('cx',size/2); bg.setAttribute('cy',size/2); bg.setAttribute('r',radius);
+  bg.setAttribute('stroke','#eee'); bg.setAttribute('stroke-width',stroke); bg.setAttribute('fill','none');
+  svg.appendChild(bg);
+  const fg = document.createElementNS(ns,'circle');
+  fg.setAttribute('cx',size/2); fg.setAttribute('cy',size/2); fg.setAttribute('r',radius);
+  fg.setAttribute('stroke-linecap','round'); fg.setAttribute('fill','none');
+  const color = cat==='hidrica' ? getComputedStyle(document.documentElement).getPropertyValue('--accent-hid') : (cat==='carbono' ? '#d65b1f' : (cat==='plastico' ? '#e0a800' : '#2bb673'));
+  fg.setAttribute('stroke', color || '#2bb673');
+  fg.setAttribute('stroke-width',stroke);
+  fg.setAttribute('stroke-dasharray',circ);
+  fg.setAttribute('stroke-dashoffset',circ);
+  svg.appendChild(fg);
+  container.appendChild(svg);
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.style.position='absolute';
+  label.style.textAlign='center';
+  label.innerHTML = `<div class="percent">${pct}%</div><div class="text">${cat.toUpperCase()}</div>`;
+  container.appendChild(label);
+  // animate
+  setTimeout(()=>{ fg.style.transition='stroke-dashoffset 1100ms cubic-bezier(.2,.9,.2,1)'; const offset = circ * (1 - pct/100); fg.style.strokeDashoffset = offset; },50);
+}
+
+/* recommendations (detailed) */
+function getRecommendations(cat){
+  if(cat==='hidrica'){
+    return [
+      { title:'Cierra el grifo al cepillar', text:'Cerrar el caño mientras te cepillas o lavas los platos evita un desperdicio diario significativo. Recomendación práctica: utiliza un vaso para enjuagarte cuando sea posible y coloca un temporizador para controlar el tiempo de ducha.' },
+      { title:'Duchas más cortas y eficientes', text:'Reducir la duración de la ducha a 5–8 minutos y usar una alcachofa ahorradora puede ahorrar decenas de litros cada semana. Instala reductores de flujo si es posible.' },
+      { title:'Lavadora y reparación de fugas', text:'Ejecuta la lavadora con carga completa y en modo eco; repara fugas inmediatamente y reutiliza agua para riego cuando sea factible.' }
+    ];
+  } else if(cat==='carbono'){
+    return [
+      { title:'Prioriza transporte activo o público', text:'Sustituir viajes cortos en automóvil por bicicleta o caminatas reduce emisiones y mejora la salud. Planifica viajes en transporte público o comparte vehículo para recorridos largos.' },
+      { title:'Eficiencia energética en casa', text:'Apagar equipos, desconectar cargadores y usar bombillas LED reduce consumo. Mantén electrodomésticos en buen estado y utiliza modos eco cuando estén disponibles.' },
+      { title:'Compra local y consumo responsable', text:'Comprar productos locales y de temporada disminuye la huella asociada al transporte. Evita compras impulsivas y prioriza bienes duraderos.' }
+    ];
+  } else if(cat==='plastico'){
+    return [
+      { title:'Reutiliza envases y botellas', text:'Lleva tu botella y tápers reutilizables. Evitar envases de un solo uso es la medida con mayor efecto en reducción de residuos plásticos.' },
+      { title:'Usa bolsas y compra a granel', text:'Llevar bolsas de tela y comprar a granel reduce embalajes. Planifica tus compras para reducir empaques innecesarios.' },
+      { title:'Reciclaje efectivo y reducción', text:'Separa correctamente los residuos, limpia envases para reciclaje y participa en puntos de recolección locales.' }
+    ];
+  } else {
+    return [
+      { title:'Reduce y clasifica tus residuos', text:'Implementa rutinas semanales para separar orgánico, reciclable y resto; reduce consumo y reutiliza cuando sea posible.' },
+      { title:'Participa y promueve acciones locales', text:'Únete a campañas de limpieza, siembra o compostaje en tu universidad; la acción colectiva multiplica beneficios.' },
+      { title:'Compostaje y consumo responsable', text:'Compostar residuos orgánicos reduce lo enviado a vertederos y genera abono útil; prioriza productos con menor impacto ambiental.' }
+    ];
+  }
+}
+
+/* Download and new */
+document.getElementById('btnDownload').addEventListener('click', ()=>{
+  const text = document.getElementById('result-body').innerText + "\n\n" + document.getElementById('result-reco').innerText;
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'informe_huella_final.txt'; a.click();
+});
+document.getElementById('btnNew').addEventListener('click', ()=>{
+  resultados.classList.add('hidden');
+  categorias.classList.remove('hidden');
+  state.answers = [];
+  qList.innerHTML = '';
+});
+
+/* init */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const hist = JSON.parse(localStorage.getItem('enc_history')||'[]');
+  document.getElementById('session-count').innerText = hist.length + ' completadas';
+});
+
+/* ensure audio context resume on interaction for mobile */
+document.body.addEventListener('click', ()=>{ if(audioCtx.state === 'suspended') audioCtx.resume(); }, {once:true});
+</script>
+</body>
+</html>
